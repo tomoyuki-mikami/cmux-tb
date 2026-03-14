@@ -14,6 +14,7 @@ struct TerminalPanelView: View {
     let onFocus: () -> Void
     let onTriggerFlash: () -> Void
 
+    // [TextBox]
     @AppStorage(TextBoxInputSettings.enabledKey) private var textBoxEnabled = TextBoxInputSettings.defaultEnabled
     @AppStorage(TextBoxInputSettings.enterToSendKey) private var enterToSend = TextBoxInputSettings.defaultEnterToSend
 
@@ -45,6 +46,7 @@ struct TerminalPanelView: View {
             .id(panel.id)
             .background(Color.clear)
 
+            // [TextBox]
             if showTextBox {
                 TextBoxInputContainer(
                     text: $panel.textBoxContent,
@@ -82,6 +84,7 @@ struct TerminalPanelView: View {
                 )
             }
         }
+        // [TextBox]
         .onChange(of: textBoxEnabled) { enabled in
             if enabled && !panel.isTextBoxActive {
                 panel.isTextBoxActive = true

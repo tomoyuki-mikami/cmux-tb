@@ -3094,7 +3094,7 @@ final class TerminalSurface: Identifiable, ObservableObject {
         return ghostty_surface_needs_confirm_quit(surface)
     }
 
-    /// Move keyboard focus to the terminal's NSView.
+    /// [TextBox] Move keyboard focus to the terminal's NSView.
     func focusTerminalView() {
         guard let view = attachedView, let window = view.window else { return }
         window.makeFirstResponder(view)
@@ -3109,7 +3109,7 @@ final class TerminalSurface: Identifiable, ObservableObject {
         writeTextData(data, to: surface)
     }
 
-    /// Send a synthetic key event through AppKit, simulating a physical
+    /// [TextBox] Send a synthetic key event through AppKit, simulating a physical
     /// key press. Creates an `NSEvent.keyDown` and delivers it via
     /// `view.keyDown(with:)`, going through AppKit's full key handling path
     /// (which internally routes to `ghostty_surface_key`).
@@ -3142,7 +3142,7 @@ final class TerminalSurface: Identifiable, ObservableObject {
         }
     }
 
-    // Individual key methods for TextBox → terminal forwarding.
+    // [TextBox] Individual key methods for TextBox → terminal forwarding.
     //
     // Why individual methods instead of `forwardKeyEvent(rawEvent)`?
     // Forwarding raw NSEvents via `view.keyDown(with:)` produces `^^`
@@ -3179,7 +3179,7 @@ final class TerminalSurface: Identifiable, ObservableObject {
         sendSyntheticKey(characters: "\u{7F}", keyCode: 51)
     }
 
-    /// Forward an NSEvent directly to the terminal view.
+    /// [TextBox] Forward an NSEvent directly to the terminal view.
     /// Used only for Ctrl+key combinations, which are already proper
     /// NSEvents from the system and don't produce garbage characters.
     func forwardKeyEvent(_ event: NSEvent) {
@@ -7095,7 +7095,7 @@ final class GhosttySurfaceScrollView: NSView {
             return
         }
 
-        // Don't steal focus from a TextBox input view.
+        // [TextBox] Don't steal focus from a TextBox input view.
         if window.firstResponder is InputTextView {
             return
         }
@@ -7234,7 +7234,7 @@ final class GhosttySurfaceScrollView: NSView {
 #endif
             return
         }
-        // Don't steal focus from a TextBox input view.
+        // [TextBox] Don't steal focus from a TextBox input view.
         if window.firstResponder is InputTextView {
 #if DEBUG
             dlog("focus.apply.skip surface=\(surfaceShort) reason=textBoxFocused")

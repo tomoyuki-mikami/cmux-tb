@@ -29,14 +29,14 @@ final class TerminalPanel: Panel, ObservableObject {
         }
     }
 
-    /// Whether TextBox input mode is currently active for this panel.
+    /// [TextBox] Whether TextBox input mode is currently active for this panel.
     /// Defaults to the global setting so that new panels inherit the user's preference.
     @Published var isTextBoxActive: Bool = TextBoxInputSettings.isEnabled()
 
-    /// Preserved text content when switching between TextBox and terminal input modes.
+    /// [TextBox] Preserved text content when switching between TextBox and terminal input modes.
     @Published var textBoxContent: String = ""
 
-    /// Toggle TextBox input mode on/off.
+    /// [TextBox] Toggle TextBox input mode on/off.
     /// Closing focuses the terminal; opening focuses the TextBox automatically
     /// via `InputTextView.makeNSView`.
     func toggleTextBoxMode() {
@@ -46,7 +46,7 @@ final class TerminalPanel: Panel, ObservableObject {
         }
     }
 
-    /// Send text through TextBox: writes to PTY via bracket paste, then
+    /// [TextBox] Send text through TextBox: writes to PTY via bracket paste, then
     /// sends Return as a separate synthetic key event after a delay.
     ///
     /// **Why not `sendText(text + "\r")` or `sendText(text + "\n")`?**

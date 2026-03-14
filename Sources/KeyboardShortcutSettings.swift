@@ -42,7 +42,7 @@ enum KeyboardShortcutSettings {
         case toggleBrowserDeveloperTools
         case showBrowserJavaScriptConsole
 
-        // TextBox Input
+        // [TextBox]
         case toggleTextBoxInput
 
         var id: String { rawValue }
@@ -79,7 +79,7 @@ enum KeyboardShortcutSettings {
             case .openBrowser: return String(localized: "shortcut.openBrowser.label", defaultValue: "Open Browser")
             case .toggleBrowserDeveloperTools: return String(localized: "shortcut.toggleBrowserDevTools.label", defaultValue: "Toggle Browser Developer Tools")
             case .showBrowserJavaScriptConsole: return String(localized: "shortcut.showBrowserJSConsole.label", defaultValue: "Show Browser JavaScript Console")
-            case .toggleTextBoxInput: return String(localized: "shortcut.toggleTextBoxInput.label", defaultValue: "Toggle TextBox Input")
+            case .toggleTextBoxInput: return String(localized: "shortcut.toggleTextBoxInput.label", defaultValue: "Toggle TextBox Input") // [TextBox]
             }
         }
 
@@ -115,7 +115,7 @@ enum KeyboardShortcutSettings {
             case .openBrowser: return "shortcut.openBrowser"
             case .toggleBrowserDeveloperTools: return "shortcut.toggleBrowserDeveloperTools"
             case .showBrowserJavaScriptConsole: return "shortcut.showBrowserJavaScriptConsole"
-            case .toggleTextBoxInput: return "shortcut.toggleTextBoxInput"
+            case .toggleTextBoxInput: return "shortcut.toggleTextBoxInput" // [TextBox]
             }
         }
 
@@ -183,7 +183,7 @@ enum KeyboardShortcutSettings {
             case .showBrowserJavaScriptConsole:
                 // Safari default: Show JavaScript Console.
                 return StoredShortcut(key: "c", command: true, shift: false, option: true, control: false)
-            case .toggleTextBoxInput:
+            case .toggleTextBoxInput: // [TextBox]
                 return StoredShortcut(key: "t", command: true, shift: true, option: true, control: false)
             }
         }
@@ -259,7 +259,7 @@ enum KeyboardShortcutSettings {
     static func toggleBrowserDeveloperToolsShortcut() -> StoredShortcut { shortcut(for: .toggleBrowserDeveloperTools) }
     static func showBrowserJavaScriptConsoleShortcut() -> StoredShortcut { shortcut(for: .showBrowserJavaScriptConsole) }
 
-    static func toggleTextBoxInputShortcut() -> StoredShortcut { shortcut(for: .toggleTextBoxInput) }
+    static func toggleTextBoxInputShortcut() -> StoredShortcut { shortcut(for: .toggleTextBoxInput) } // [TextBox]
 }
 
 /// A keyboard shortcut that can be stored in UserDefaults
