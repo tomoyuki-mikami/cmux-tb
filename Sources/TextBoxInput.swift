@@ -22,7 +22,7 @@
 // - **IME support**: Input methods (e.g. Japanese) work correctly
 // - **Multi-line input**: Insert newlines for multi-line text submission.
 //   Enter=send / Shift+Enter=newline by default (reversible in settings)
-// - **Scrolling**: Text box scrolls internally when content grows; frame stays fixed
+// - **Auto-grow**: Text box grows with content (1–5 lines), then scrolls internally
 // - **Shell history integration**: When TextBox is empty, arrow keys / Tab /
 //   Backspace are forwarded to the terminal for shell completion and history
 // - **Ctrl+key forwarding**: Ctrl+C/D/Z etc. are always forwarded to the
@@ -65,10 +65,10 @@ private enum TextBoxLayout {
 
 /// Layout constants for the internal NSTextView (font, sizing, border, insets).
 private enum TextBoxInputViewLayout {
-    /// Minimum height of the text view (fits a single line of text).
-    static let minHeight: CGFloat = 20
-    /// Maximum height before the text view starts scrolling internally.
-    static let maxHeight: CGFloat = 100
+    /// Minimum number of visible lines.
+    static let minLines: Int = 2
+    /// Maximum number of visible lines before the text view starts scrolling internally.
+    static let maxLines: Int = 6
     /// Added to the terminal font size for the TextBox font (slightly larger for readability).
     static let fontSizeOffset: CGFloat = 1
     /// Extra spacing between lines in multi-line input.
@@ -180,12 +180,27 @@ struct TextBoxInputContainer: View {
     let terminalBackgroundColor: NSColor
     let terminalForegroundColor: NSColor
     let terminalFont: NSFont
+    @State private var textViewHeight: CGFloat = 0
+
+    /// Computes the height for a given number of lines using the current font.
+    private func heightForLines(_ count: Int) -> CGFloat {
+        let fontSize = max(1, terminalFont.pointSize + TextBoxInputViewLayout.fontSizeOffset)
+        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        let lineHeight = font.ascender - font.descender + font.leading
+            + TextBoxInputViewLayout.lineSpacing
+        return lineHeight * CGFloat(count) + TextBoxInputViewLayout.textInset.height * 2
+    }
 
     var body: some View {
+        let minH = heightForLines(TextBoxInputViewLayout.minLines)
+        let maxH = heightForLines(TextBoxInputViewLayout.maxLines)
+        let clampedHeight = max(minH, min(maxH, textViewHeight))
+
         HStack(alignment: .bottom, spacing: TextBoxLayout.contentSpacing) {
             TextBoxInputView(
                 text: $text,
                 enterToSend: enterToSend,
+                textViewHeight: $textViewHeight,
                 onSubmit: submit,
                 onEscape: { surface.focusTerminalView() },
                 onArrowUp: { surface.sendArrowUpKey() },
@@ -199,10 +214,7 @@ struct TextBoxInputContainer: View {
                 terminalForegroundColor: terminalForegroundColor,
                 terminalFont: terminalFont
             )
-            .frame(
-                minHeight: TextBoxInputViewLayout.minHeight,
-                maxHeight: TextBoxInputViewLayout.maxHeight
-            )
+            .frame(height: clampedHeight)
 
             Button(action: submit) {
                 Image(systemName: "paperplane.fill")
@@ -234,6 +246,7 @@ struct TextBoxInputContainer: View {
 struct TextBoxInputView: NSViewRepresentable {
     @Binding var text: String
     let enterToSend: Bool
+    @Binding var textViewHeight: CGFloat
     let onSubmit: () -> Void
     let onEscape: () -> Void
     let onArrowUp: () -> Void
@@ -327,9 +340,10 @@ struct TextBoxInputView: NSViewRepresentable {
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
 
-        // Auto-focus the text view when it appears
+        // Auto-focus the text view and calculate initial height
         DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
+            context.coordinator.recalcHeight(textView)
         }
 
         return container
@@ -341,6 +355,7 @@ struct TextBoxInputView: NSViewRepresentable {
         context.coordinator.parent = self
         if textView.string != text {
             textView.string = text
+            context.coordinator.recalcHeight(textView)
         }
         // Keep colors in sync with terminal theme changes
         textView.backgroundColor = terminalBackgroundColor
@@ -375,6 +390,16 @@ struct TextBoxInputView: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+            recalcHeight(textView)
+        }
+
+        func recalcHeight(_ textView: NSTextView) {
+            guard let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer else { return }
+            layoutManager.ensureLayout(for: textContainer)
+            let contentHeight = layoutManager.usedRect(for: textContainer).height
+                + textView.textContainerInset.height * 2
+            parent.textViewHeight = contentHeight
         }
 
         /// Returns true if the action was handled (consumed).
