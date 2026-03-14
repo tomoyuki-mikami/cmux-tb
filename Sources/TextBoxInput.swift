@@ -216,13 +216,22 @@ struct TextBoxInputView: NSViewRepresentable {
         Coordinator(self)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
+    func makeNSView(context: Context) -> NSView {
+        // Container view holds the border so it stays fixed while content scrolls
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.borderWidth = TextBoxLayout.borderWidth
+        container.layer?.borderColor = terminalForegroundColor.withAlphaComponent(TextBoxLayout.borderOpacity).cgColor
+        container.layer?.cornerRadius = TextBoxLayout.cornerRadius
+        container.layer?.masksToBounds = true
+
         let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = false
+        scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
 
         let textView = InputTextView()
         textView.isRichText = false
@@ -244,12 +253,6 @@ struct TextBoxInputView: NSViewRepresentable {
         textView.typingAttributes = makeTypingAttributes()
         textView.defaultParagraphStyle = makeParagraphStyle()
 
-        // Visible border
-        textView.wantsLayer = true
-        textView.layer?.borderWidth = TextBoxLayout.borderWidth
-        textView.layer?.borderColor = terminalForegroundColor.withAlphaComponent(TextBoxLayout.borderOpacity).cgColor
-        textView.layer?.cornerRadius = TextBoxLayout.cornerRadius
-
         if let textContainer = textView.textContainer {
             textContainer.widthTracksTextView = true
             textContainer.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
@@ -258,16 +261,25 @@ struct TextBoxInputView: NSViewRepresentable {
         scrollView.documentView = textView
         context.coordinator.textView = textView
 
+        container.addSubview(scrollView)
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: container.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+        ])
+
         // Auto-focus the text view when it appears
         DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
         }
 
-        return scrollView
+        return container
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? InputTextView else { return }
+    func updateNSView(_ container: NSView, context: Context) {
+        guard let scrollView = container.subviews.first as? NSScrollView,
+              let textView = scrollView.documentView as? InputTextView else { return }
         context.coordinator.parent = self
         if textView.string != text {
             textView.string = text
@@ -276,7 +288,7 @@ struct TextBoxInputView: NSViewRepresentable {
         textView.backgroundColor = terminalBackgroundColor
         textView.insertionPointColor = terminalForegroundColor
         textView.typingAttributes = makeTypingAttributes()
-        textView.layer?.borderColor = terminalForegroundColor.withAlphaComponent(TextBoxLayout.borderOpacity).cgColor
+        container.layer?.borderColor = terminalForegroundColor.withAlphaComponent(TextBoxLayout.borderOpacity).cgColor
     }
 
     // MARK: Coordinator
