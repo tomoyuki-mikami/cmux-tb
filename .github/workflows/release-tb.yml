@@ -87,10 +87,11 @@ jobs:
           fi
           APP_PATH="build/Build/Products/Release/cmux-tb.app"
           ENTITLEMENTS="cmux.entitlements"
-          CLI_PATH="$APP_PATH/Contents/Resources/bin/cmux"
-          if [ -f "$CLI_PATH" ]; then
-            /usr/bin/codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" --entitlements "$ENTITLEMENTS" "$CLI_PATH"
-          fi
+          # Sign all binaries in the Resources/bin directory
+          for CLI_BIN in "$APP_PATH"/Contents/Resources/bin/*; do
+            [ -f "$CLI_BIN" ] || continue
+            /usr/bin/codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" --entitlements "$ENTITLEMENTS" "$CLI_BIN"
+          done
           /usr/bin/codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" --entitlements "$ENTITLEMENTS" --deep "$APP_PATH"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
