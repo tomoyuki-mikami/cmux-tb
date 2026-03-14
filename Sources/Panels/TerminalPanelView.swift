@@ -49,7 +49,6 @@ struct TerminalPanelView: View {
                 TextBoxInputContainer(
                     text: $panel.textBoxContent,
                     enterToSend: enterToSend,
-                    commandHistory: panel.commandHistory,
                     terminalBackgroundColor: runtimeBg,
                     terminalForegroundColor: runtimeFg,
                     terminalFont: font,
@@ -58,6 +57,27 @@ struct TerminalPanelView: View {
                     },
                     onEscape: {
                         panel.surface.focusTerminalView()
+                    },
+                    onArrowUp: {
+                        panel.surface.sendArrowUpKey()
+                    },
+                    onArrowDown: {
+                        panel.surface.sendArrowDownKey()
+                    },
+                    onArrowLeft: {
+                        panel.surface.sendArrowLeftKey()
+                    },
+                    onArrowRight: {
+                        panel.surface.sendArrowRightKey()
+                    },
+                    onTab: {
+                        panel.surface.sendTabKey()
+                    },
+                    onBackspace: {
+                        panel.surface.sendBackspaceKey()
+                    },
+                    onControlKey: { event in
+                        panel.surface.forwardKeyEvent(event)
                     }
                 )
             }

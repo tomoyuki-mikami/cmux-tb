@@ -3109,40 +3109,59 @@ final class TerminalSurface: Identifiable, ObservableObject {
         writeTextData(data, to: surface)
     }
 
-    /// Send a synthetic Return key event through AppKit, simulating a physical
+    /// Send a synthetic key event through AppKit, simulating a physical
     /// key press. This goes through the same NSEvent → keyDown path as a real
     /// keystroke, ensuring compatibility with all terminal applications.
-    func sendReturnKey() {
+    func sendSyntheticKey(characters: String, keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) {
         guard let view = attachedView, let window = view.window else { return }
-        let flags: NSEvent.ModifierFlags = []
         if let keyDown = NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
-            modifierFlags: flags,
+            modifierFlags: modifiers,
             timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: window.windowNumber,
             context: nil,
-            characters: "\r",
-            charactersIgnoringModifiers: "\r",
+            characters: characters,
+            charactersIgnoringModifiers: characters,
             isARepeat: false,
-            keyCode: 36 // Return key
+            keyCode: keyCode
         ) {
             view.keyDown(with: keyDown)
         }
-        if let keyUp = NSEvent.keyEvent(
-            with: .keyUp,
-            location: .zero,
-            modifierFlags: flags,
-            timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: window.windowNumber,
-            context: nil,
-            characters: "\r",
-            charactersIgnoringModifiers: "\r",
-            isARepeat: false,
-            keyCode: 36
-        ) {
-            view.keyUp(with: keyUp)
-        }
+    }
+
+    func sendReturnKey() {
+        sendSyntheticKey(characters: "\r", keyCode: 36)
+    }
+
+    func sendArrowUpKey() {
+        sendSyntheticKey(characters: "\u{F700}", keyCode: 126)
+    }
+
+    func sendArrowDownKey() {
+        sendSyntheticKey(characters: "\u{F701}", keyCode: 125)
+    }
+
+    func sendArrowLeftKey() {
+        sendSyntheticKey(characters: "\u{F702}", keyCode: 123)
+    }
+
+    func sendArrowRightKey() {
+        sendSyntheticKey(characters: "\u{F703}", keyCode: 124)
+    }
+
+    func sendTabKey() {
+        sendSyntheticKey(characters: "\t", keyCode: 48)
+    }
+
+    func sendBackspaceKey() {
+        sendSyntheticKey(characters: "\u{7F}", keyCode: 51)
+    }
+
+    /// Forward an NSEvent directly to the terminal view.
+    func forwardKeyEvent(_ event: NSEvent) {
+        guard let view = attachedView else { return }
+        view.keyDown(with: event)
     }
 
     func requestBackgroundSurfaceStartIfNeeded() {

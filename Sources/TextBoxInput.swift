@@ -112,12 +112,18 @@ final class CommandHistory {
 struct TextBoxInputContainer: View {
     @Binding var text: String
     let enterToSend: Bool
-    let commandHistory: CommandHistory
     let terminalBackgroundColor: NSColor
     let terminalForegroundColor: NSColor
     let terminalFont: NSFont
     let onSend: (String) -> Void
     let onEscape: () -> Void
+    let onArrowUp: () -> Void
+    let onArrowDown: () -> Void
+    let onArrowLeft: () -> Void
+    let onArrowRight: () -> Void
+    let onTab: () -> Void
+    let onBackspace: () -> Void
+    let onControlKey: (NSEvent) -> Void
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
@@ -126,7 +132,13 @@ struct TextBoxInputContainer: View {
                 enterToSend: enterToSend,
                 onSubmit: submit,
                 onEscape: onEscape,
-                commandHistory: commandHistory,
+                onArrowUp: onArrowUp,
+                onArrowDown: onArrowDown,
+                onArrowLeft: onArrowLeft,
+                onArrowRight: onArrowRight,
+                onTab: onTab,
+                onBackspace: onBackspace,
+                onControlKey: onControlKey,
                 terminalBackgroundColor: terminalBackgroundColor,
                 terminalForegroundColor: terminalForegroundColor,
                 terminalFont: terminalFont
@@ -170,7 +182,13 @@ struct TextBoxInputView: NSViewRepresentable {
     let enterToSend: Bool
     let onSubmit: () -> Void
     let onEscape: () -> Void
-    let commandHistory: CommandHistory
+    let onArrowUp: () -> Void
+    let onArrowDown: () -> Void
+    let onArrowLeft: () -> Void
+    let onArrowRight: () -> Void
+    let onTab: () -> Void
+    let onBackspace: () -> Void
+    let onControlKey: (NSEvent) -> Void
     let terminalBackgroundColor: NSColor
     let terminalForegroundColor: NSColor
     let terminalFont: NSFont
@@ -288,12 +306,31 @@ struct TextBoxInputView: NSViewRepresentable {
                 return true
             }
             if selector == #selector(NSResponder.moveUp(_:)) {
-                return handleMoveUp()
+                return handleEmpty { parent.onArrowUp() }
             }
             if selector == #selector(NSResponder.moveDown(_:)) {
-                return handleMoveDown()
+                return handleEmpty { parent.onArrowDown() }
+            }
+            if selector == #selector(NSResponder.moveLeft(_:)) {
+                return handleEmpty { parent.onArrowLeft() }
+            }
+            if selector == #selector(NSResponder.moveRight(_:)) {
+                return handleEmpty { parent.onArrowRight() }
+            }
+            if selector == #selector(NSResponder.insertTab(_:)) {
+                return handleEmpty { parent.onTab() }
+            }
+            if selector == #selector(NSResponder.deleteBackward(_:)) {
+                return handleEmpty { parent.onBackspace() }
             }
             return false
+        }
+
+        /// Forward action to terminal only when TextBox is empty.
+        private func handleEmpty(_ action: () -> Void) -> Bool {
+            guard let textView = textView, textView.string.isEmpty else { return false }
+            action()
+            return true
         }
 
         private func handleNewline(shifted: Bool) -> Bool {
@@ -312,36 +349,6 @@ struct TextBoxInputView: NSViewRepresentable {
             return true
         }
 
-        private func handleMoveUp() -> Bool {
-            guard let textView = textView else { return false }
-            let selectedRange = textView.selectedRange()
-            guard selectedRange.location == 0 && selectedRange.length == 0 else {
-                return false
-            }
-            if let entry = parent.commandHistory.navigateBack(currentText: textView.string) {
-                textView.string = entry
-                parent.text = entry
-                textView.setSelectedRange(NSRange(location: entry.count, length: 0))
-                return true
-            }
-            return false
-        }
-
-        private func handleMoveDown() -> Bool {
-            guard let textView = textView else { return false }
-            let selectedRange = textView.selectedRange()
-            let textLength = (textView.string as NSString).length
-            guard selectedRange.location == textLength && selectedRange.length == 0 else {
-                return false
-            }
-            if let entry = parent.commandHistory.navigateForward() {
-                textView.string = entry
-                parent.text = entry
-                textView.setSelectedRange(NSRange(location: entry.count, length: 0))
-                return true
-            }
-            return false
-        }
     }
 }
 
@@ -350,6 +357,16 @@ struct TextBoxInputView: NSViewRepresentable {
 /// Custom NSTextView subclass that routes doCommandBy to the coordinator.
 final class InputTextView: NSTextView {
     weak var inputCoordinator: TextBoxInputView.Coordinator?
+
+    override func keyDown(with event: NSEvent) {
+        // Ctrl+key always goes to terminal regardless of TextBox content
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags.contains(.control) {
+            inputCoordinator?.parent.onControlKey(event)
+            return
+        }
+        super.keyDown(with: event)
+    }
 
     override func doCommand(by selector: Selector) {
         if let coordinator = inputCoordinator, coordinator.handleCommand(selector) {

@@ -36,9 +36,6 @@ final class TerminalPanel: Panel, ObservableObject {
     /// Preserved text content when switching between TextBox and terminal input modes.
     @Published var textBoxContent: String = ""
 
-    /// Command history shared with TextBoxInputView for Up/Down arrow navigation.
-    let commandHistory = CommandHistory()
-
     /// Toggle TextBox input mode on/off.
     /// Closing focuses the terminal; opening focuses the TextBox automatically
     /// via `InputTextView.makeNSView`.
@@ -49,13 +46,12 @@ final class TerminalPanel: Panel, ObservableObject {
         }
     }
 
-    /// Send text through TextBox: writes to PTY and records in command history.
+    /// Send text through TextBox: writes to PTY.
     /// Delays the Return key slightly to ensure the bracket paste has been
     /// fully processed by the receiving application before submission.
     func sendTextFromTextBox(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .newlines)
         if !trimmed.isEmpty {
-            commandHistory.add(trimmed)
             surface.sendText(trimmed)
         }
         // Delay to let bracket paste be fully processed before sending Enter
