@@ -28,14 +28,14 @@
 // - **Ctrl+key forwarding**: Ctrl+C/D/Z etc. are always forwarded to the
 //   terminal regardless of TextBox content
 // - **Theme sync**: Automatically matches terminal background/foreground colors and font
-// - **Toggle**: Cmd+Option+T to toggle on/off with focus coordination
+// - **Show/Hide**: Cmd+Option+T to show/hide with focus coordination
 //
 // ## Settings (Settings > TextBox Input)
 //
 // - **Enable Mode**: Toggle TextBox on/off (default: off)
 // - **Send to Enter**: On = Enter sends / Shift+Enter inserts newline,
 //   Off = Enter inserts newline / Shift+Enter sends (default: on)
-// - **Toggle Input Mode**: Shows the toggle shortcut (Cmd+Option+T)
+// - **Show/Hide TextBox Input**: Shows the toggle shortcut (Cmd+Option+T)
 //
 // ## Upstream impact
 //
@@ -88,8 +88,7 @@ private enum TextBoxInputViewLayout {
     /// Placeholder text shown when the TextBox is empty.
     /// The send key name changes based on the Enter-to-Send setting.
     static func placeholderText(enterToSend: Bool) -> String {
-        let sendKey = enterToSend ? "Return" : "Shift+Return"
-        return "Commands or prompts here… \(sendKey) to send"
+        return "Commands or prompts here… Shift+Return \(enterToSend ? "for newline" : "to send")"
     }
 }
 
@@ -115,6 +114,9 @@ enum TextBoxInputSettings {
 
     static let defaultEnabled = true
     static let defaultEnterToSend = false
+
+    /// Opacity applied to settings rows when TextBox is disabled.
+    static let disabledSettingsOpacity: Double = 0.5
 
     static func isEnabled() -> Bool {
         if UserDefaults.standard.object(forKey: enabledKey) == nil {

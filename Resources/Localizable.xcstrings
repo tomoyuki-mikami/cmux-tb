@@ -55166,7 +55166,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Toggle Input Mode"
+            "value" : "Show/Hide TextBox Input"
           }
         }
       }

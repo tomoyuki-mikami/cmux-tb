@@ -530,7 +530,7 @@ struct cmuxApp: App {
                 }
 
                 // [TextBox]
-                splitCommandButton(title: String(localized: "menu.view.toggleTextBoxInput", defaultValue: "Toggle TextBox Input"), shortcut: toggleTextBoxInputMenuShortcut) {
+                splitCommandButton(title: String(localized: "menu.view.toggleTextBoxInput", defaultValue: "Show/Hide TextBox Input"), shortcut: toggleTextBoxInputMenuShortcut) {
                     activeTabManager.selectedWorkspace?.focusedTerminalPanel?.toggleTextBoxMode()
                 }
 
@@ -4006,18 +4006,19 @@ struct SettingsView: View {
                                 .controlSize(.small)
                         }
                         .disabled(!textBoxInputEnabled)
-                        .opacity(textBoxInputEnabled ? 1.0 : 0.5)
+                        .opacity(textBoxInputEnabled ? 1.0 : TextBoxInputSettings.disabledSettingsOpacity)
 
                         SettingsCardDivider()
 
                         SettingsCardRow(
-                            String(localized: "settings.textBoxInput.toggleShortcut", defaultValue: "Toggle Input Mode"),
+                            String(localized: "settings.textBoxInput.toggleShortcut", defaultValue: "Show/Hide TextBox Input"),
                             subtitle: String(localized: "settings.textBoxInput.toggleShortcut.subtitle", defaultValue: "Configurable in Keyboard Shortcuts settings.")
                         ) {
                             Text(KeyboardShortcutSettings.toggleTextBoxInputShortcut().displayString)
                                 .font(.system(size: 12, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
+                        .opacity(textBoxInputEnabled ? 1.0 : TextBoxInputSettings.disabledSettingsOpacity)
                     }
 
                     SettingsSectionHeader(title: String(localized: "settings.section.browser", defaultValue: "Browser"))
