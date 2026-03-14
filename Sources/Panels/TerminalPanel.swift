@@ -83,6 +83,10 @@ final class TerminalPanel: Panel, ObservableObject {
         surface.hostedView
     }
 
+    var requestedWorkingDirectory: String? {
+        surface.requestedWorkingDirectory
+    }
+
     init(workspaceId: UUID, surface: TerminalSurface) {
         self.id = surface.id
         self.workspaceId = workspaceId
@@ -206,11 +210,19 @@ final class TerminalPanel: Panel, ObservableObject {
         surface.needsConfirmClose()
     }
 
+    func shouldPersistScrollbackForSessionSnapshot() -> Bool {
+        // Session restore only replays terminal output into a fresh shell. If Ghostty
+        // says we are not safely at a prompt, replaying that state later is misleading.
+        !surface.needsConfirmClose()
+    }
+
     func triggerFlash() {
+        guard NotificationPaneFlashSettings.isEnabled() else { return }
         hostedView.triggerFlash()
     }
 
     func triggerNotificationDismissFlash() {
+        guard NotificationPaneFlashSettings.isEnabled() else { return }
         hostedView.triggerFlash(style: .notificationDismiss)
     }
 

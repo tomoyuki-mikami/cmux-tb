@@ -5,6 +5,8 @@ import AppKit
 /// View for rendering a terminal panel
 struct TerminalPanelView: View {
     @ObservedObject var panel: TerminalPanel
+    @AppStorage(NotificationPaneRingSettings.enabledKey)
+    private var notificationPaneRingEnabled = NotificationPaneRingSettings.defaultEnabled
     let isFocused: Bool
     let isVisibleInUI: Bool
     let portalPriority: Int
@@ -35,6 +37,8 @@ struct TerminalPanelView: View {
         let runtimeFg = config.foregroundColor
         let font = NSFont.monospacedSystemFont(ofSize: config.fontSize, weight: .regular)
 
+        // Layering contract: terminal find UI is mounted in GhosttySurfaceScrollView (AppKit portal layer)
+        // via `searchState`. Rendering `SurfaceSearchOverlay` in this SwiftUI container can hide it.
         VStack(spacing: 0) {
             GhosttyTerminalView(
                 terminalSurface: panel.surface,
@@ -42,7 +46,7 @@ struct TerminalPanelView: View {
                 isVisibleInUI: isVisibleInUI,
                 portalZPriority: portalPriority,
                 showsInactiveOverlay: isSplit && !isFocused,
-                showsUnreadNotificationRing: hasUnreadNotification,
+                showsUnreadNotificationRing: hasUnreadNotification && notificationPaneRingEnabled,
                 inactiveOverlayColor: appearance.unfocusedOverlayNSColor,
                 inactiveOverlayOpacity: appearance.unfocusedOverlayOpacity,
                 searchState: panel.searchState,
@@ -50,6 +54,8 @@ struct TerminalPanelView: View {
                 onFocus: { _ in onFocus() },
                 onTriggerFlash: onTriggerFlash
             )
+            // Keep the NSViewRepresentable identity stable across bonsplit structural updates.
+            // This prevents transient teardown/recreate that can momentarily detach the hosted terminal view.
             .id(panel.id)
             .background(Color.clear)
 

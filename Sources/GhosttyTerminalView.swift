@@ -8,6 +8,7 @@ import Darwin
 import Sentry
 import Bonsplit
 import IOSurface
+import UniformTypeIdentifiers
 
 #if os(macOS)
 func cmuxShouldUseTransparentBackgroundWindow() -> Bool {
@@ -75,6 +76,7 @@ private enum GhosttyPasteboardHelper {
     )
     private static let utf8PlainTextType = NSPasteboard.PasteboardType("public.utf8-plain-text")
     private static let shellEscapeCharacters = "\\ ()[]{}<>\"'`!#$&;|*?\t"
+    private static let objectReplacementCharacter = Character(UnicodeScalar(0xFFFC)!)
 
     static func pasteboard(for location: ghostty_clipboard_e) -> NSPasteboard? {
         switch location {
@@ -99,13 +101,35 @@ private enum GhosttyPasteboardHelper {
             return value
         }
 
-        return pasteboard.string(forType: utf8PlainTextType)
+        if let value = pasteboard.string(forType: utf8PlainTextType) {
+            return value
+        }
+
+        if hasImageData(in: pasteboard),
+           let html = pasteboard.string(forType: .html),
+           htmlHasNoVisibleText(html) {
+            return nil
+        }
+
+        if let htmlText = attributedStringContents(from: pasteboard, type: .html, documentType: .html) {
+            return htmlText
+        }
+
+        if let rtfText = attributedStringContents(from: pasteboard, type: .rtf, documentType: .rtf) {
+            return rtfText
+        }
+
+        return attributedStringContents(from: pasteboard, type: .rtfd, documentType: .rtfd)
     }
 
     static func hasString(for location: ghostty_clipboard_e) -> Bool {
         guard let pasteboard = pasteboard(for: location) else { return false }
-        if let text = stringContents(from: pasteboard), !text.isEmpty { return true }
-        return clipboardHasImageOnly()
+        let types = pasteboard.types ?? []
+        if types.contains(.fileURL) || types.contains(.string) || types.contains(utf8PlainTextType)
+            || types.contains(.html) || types.contains(.rtf) || types.contains(.rtfd) {
+            return true
+        }
+        return hasImageData(in: pasteboard)
     }
 
     static func writeString(_ string: String, to location: ghostty_clipboard_e) {
@@ -122,40 +146,184 @@ private enum GhosttyPasteboardHelper {
         return result
     }
 
-    private static let maxClipboardImageSize = 10 * 1024 * 1024  // 10 MB
+    private static func attributedStringContents(
+        from pasteboard: NSPasteboard,
+        type: NSPasteboard.PasteboardType,
+        documentType: NSAttributedString.DocumentType
+    ) -> String? {
+        let attributed = attributedString(
+            from: pasteboard,
+            type: type,
+            documentType: documentType
+        )
 
-    /// Quick check: does the clipboard have image data and no text?
-    static func clipboardHasImageOnly() -> Bool {
-        let pb = NSPasteboard.general
-        let types = pb.types ?? []
-        let hasText = types.contains(.string) || types.contains(.html)
-            || types.contains(.rtf) || types.contains(.rtfd)
-        if hasText { return false }
-        return types.contains(.tiff) || types.contains(.png)
+        let sanitized = attributed?.string
+            .split(separator: objectReplacementCharacter, omittingEmptySubsequences: false)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let sanitized, !sanitized.isEmpty else { return nil }
+        return sanitized
     }
 
-    /// When the clipboard contains only image data (no text/HTML), saves it as
-    /// a temporary PNG file and returns the shell-escaped file path. Returns nil
-    /// if the clipboard contains text or no image.
-    static func saveClipboardImageIfNeeded() -> String? {
-        let pb = NSPasteboard.general
-        let types = pb.types ?? []
+    private static func attributedString(
+        from pasteboard: NSPasteboard,
+        type: NSPasteboard.PasteboardType,
+        documentType: NSAttributedString.DocumentType
+    ) -> NSAttributedString? {
+        let data =
+            pasteboard.data(forType: type)
+            ?? pasteboard.string(forType: type)?.data(using: .utf8)
+        guard let data else { return nil }
 
-        // If pasteboard has text/HTML, this is a normal copy.
-        let hasText = types.contains(.string) || types.contains(.html)
-            || types.contains(.rtf) || types.contains(.rtfd)
-        if hasText { return nil }
+        return try? NSAttributedString(
+            data: data,
+            options: [
+                .documentType: documentType,
+                .characterEncoding: String.Encoding.utf8.rawValue
+            ],
+            documentAttributes: nil
+        )
+    }
 
-        // Check for image types (TIFF from screenshots, PNG from some tools).
-        guard types.contains(.tiff) || types.contains(.png) else { return nil }
-        guard let image = NSImage(pasteboard: pb),
-              let tiffData = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmap.representation(using: .png, properties: [:]) else { return nil }
+    private static func rtfdAttachmentImageRepresentation(
+        in pasteboard: NSPasteboard
+    ) -> (data: Data, fileExtension: String)? {
+        guard let attributed = attributedString(
+            from: pasteboard,
+            type: .rtfd,
+            documentType: .rtfd
+        ) else { return nil }
 
-        guard pngData.count <= maxClipboardImageSize else {
+        var result: (data: Data, fileExtension: String)?
+        attributed.enumerateAttribute(
+            .attachment,
+            in: NSRange(location: 0, length: attributed.length)
+        ) { value, _, stop in
+            guard let attachment = value as? NSTextAttachment else { return }
+
+            if let fileWrapper = attachment.fileWrapper,
+               let data = fileWrapper.regularFileContents,
+               let imageRepresentation = imageAttachmentRepresentation(
+                data: data,
+                preferredFilename: fileWrapper.preferredFilename
+               ) {
+                result = imageRepresentation
+                stop.pointee = true
+            }
+        }
+
+        return result
+    }
+
+    private static func imageAttachmentRepresentation(
+        data: Data,
+        preferredFilename: String?
+    ) -> (data: Data, fileExtension: String)? {
+        let pathExtension =
+            (preferredFilename as NSString?)?.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        if let type = !pathExtension.isEmpty ? UTType(filenameExtension: pathExtension) : nil,
+           type.conforms(to: .image),
+           let fileExtension = type.preferredFilenameExtension ?? nonEmpty(pathExtension) {
+            return (data, fileExtension)
+        }
+
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+              let typeIdentifier = CGImageSourceGetType(imageSource) as String?,
+              let type = UTType(typeIdentifier),
+              type.conforms(to: .image),
+              let fileExtension = type.preferredFilenameExtension else { return nil }
+        return (data, fileExtension)
+    }
+
+    private static func nonEmpty(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func hasImageData(in pasteboard: NSPasteboard) -> Bool {
+        let types = pasteboard.types ?? []
+        if types.contains(.tiff) || types.contains(.png) {
+            return true
+        }
+
+        return types.contains { type in
+            guard let utType = UTType(type.rawValue) else { return false }
+            return utType.conforms(to: .image)
+        }
+    }
+
+    private static func directImageRepresentation(
+        in pasteboard: NSPasteboard
+    ) -> (data: Data, fileExtension: String)? {
+        if let pngData = pasteboard.data(forType: .png) {
+            return (pngData, "png")
+        }
+
+        for type in pasteboard.types ?? [] {
+            guard type != .png,
+                  type != .tiff,
+                  let utType = UTType(type.rawValue),
+                  utType.conforms(to: .image),
+                  let imageData = pasteboard.data(forType: type),
+                  let fileExtension = utType.preferredFilenameExtension,
+                  !fileExtension.isEmpty else { continue }
+            return (imageData, fileExtension)
+        }
+
+        return nil
+    }
+
+    private static func htmlHasNoVisibleText(_ html: String) -> Bool {
+        let withoutComments = html.replacingOccurrences(
+            of: "<!--[\\s\\S]*?-->",
+            with: " ",
+            options: .regularExpression
+        )
+        let withoutTags = withoutComments.replacingOccurrences(
+            of: "<[^>]+>",
+            with: " ",
+            options: .regularExpression
+        )
+        let normalized = withoutTags
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&#160;", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty
+    }
+
+    /// When the clipboard contains only image data (or rich text that resolves to
+    /// an attachment-only image), saves it as a temporary image file and returns the
+    /// shell-escaped file path. Returns nil if the clipboard contains text or no image.
+    static func saveClipboardImageIfNeeded(
+        from pasteboard: NSPasteboard = .general,
+        assumeNoText: Bool = false
+    ) -> String? {
+        if !assumeNoText && stringContents(from: pasteboard) != nil { return nil }
+
+        let imageData: Data
+        let fileExtension: String
+        if let directImage = directImageRepresentation(in: pasteboard) {
+            imageData = directImage.data
+            fileExtension = directImage.fileExtension
+        } else if let rtfdAttachment = rtfdAttachmentImageRepresentation(in: pasteboard) {
+            imageData = rtfdAttachment.data
+            fileExtension = rtfdAttachment.fileExtension
+        } else {
+            guard hasImageData(in: pasteboard),
+                  let image = NSImage(pasteboard: pasteboard),
+                  let tiffData = image.tiffRepresentation,
+                  let bitmap = NSBitmapImageRep(data: tiffData),
+                  let pngData = bitmap.representation(using: .png, properties: [:]) else { return nil }
+            imageData = pngData
+            fileExtension = "png"
+        }
+
+        let maxClipboardImageSize = 10 * 1024 * 1024  // 10 MB
+        guard imageData.count <= maxClipboardImageSize else {
 #if DEBUG
-            dlog("terminal.paste.image.rejected reason=tooLarge bytes=\(pngData.count)")
+            dlog("terminal.paste.image.rejected reason=tooLarge bytes=\(imageData.count)")
 #endif
             return nil
         }
@@ -164,11 +332,11 @@ private enum GhosttyPasteboardHelper {
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         let timestamp = formatter.string(from: Date())
-        let filename = "clipboard-\(timestamp)-\(UUID().uuidString.prefix(8)).png"
+        let filename = "clipboard-\(timestamp)-\(UUID().uuidString.prefix(8)).\(fileExtension)"
         let path = (NSTemporaryDirectory() as NSString).appendingPathComponent(filename)
 
         do {
-            try pngData.write(to: URL(fileURLWithPath: path))
+            try imageData.write(to: URL(fileURLWithPath: path))
         } catch {
 #if DEBUG
             dlog("terminal.paste.image.writeFailed error=\(error.localizedDescription)")
@@ -179,6 +347,16 @@ private enum GhosttyPasteboardHelper {
         return escapeForShell(path)
     }
 }
+
+#if DEBUG
+func cmuxPasteboardStringContentsForTesting(_ pasteboard: NSPasteboard) -> String? {
+    GhosttyPasteboardHelper.stringContents(from: pasteboard)
+}
+
+func cmuxPasteboardImagePathForTesting(_ pasteboard: NSPasteboard) -> String? {
+    GhosttyPasteboardHelper.saveClipboardImageIfNeeded(from: pasteboard)
+}
+#endif
 
 enum TerminalOpenURLTarget: Equatable {
     case embeddedBrowser(URL)
@@ -877,7 +1055,11 @@ class GhosttyApp {
 
             // When clipboard has only image data (e.g. screenshot), save as temp
             // PNG and paste the file path so CLI tools can receive images.
-            if value.isEmpty, let imagePath = GhosttyPasteboardHelper.saveClipboardImageIfNeeded() {
+            if value.isEmpty,
+               let imagePath = pasteboard.flatMap({
+                   GhosttyPasteboardHelper.saveClipboardImageIfNeeded(from: $0, assumeNoText: true)
+               })
+            {
                 value = imagePath
             }
 
@@ -1026,9 +1208,9 @@ class GhosttyApp {
 
     private func loadDefaultConfigFilesWithLegacyFallback(_ config: ghostty_config_t) {
         ghostty_config_load_default_files(config)
-        loadReleaseAppSupportGhosttyConfigIfNeeded(config)
         loadLegacyGhosttyConfigIfNeeded(config)
         ghostty_config_load_recursive_files(config)
+        loadCmuxAppSupportGhosttyConfigIfNeeded(config)
         loadCJKFontFallbackIfNeeded(config)
         ghostty_config_finalize(config)
     }
@@ -1229,20 +1411,40 @@ class GhosttyApp {
         return true
     }
 
-    static func shouldLoadReleaseAppSupportGhosttyConfig(
+    static func cmuxAppSupportConfigURLs(
         currentBundleIdentifier: String?,
-        currentConfigFileSize: Int?,
-        currentLegacyConfigFileSize: Int?,
-        releaseConfigFileSize: Int?,
-        releaseLegacyConfigFileSize: Int?
-    ) -> Bool {
-        guard SocketControlSettings.isDebugLikeBundleIdentifier(currentBundleIdentifier) else { return false }
+        appSupportDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> [URL] {
+        guard let currentBundleIdentifier, !currentBundleIdentifier.isEmpty else { return [] }
 
-        let hasCurrentAppSupportConfig = (currentConfigFileSize ?? 0) > 0 || (currentLegacyConfigFileSize ?? 0) > 0
-        guard !hasCurrentAppSupportConfig else { return false }
+        func existingConfigURLs(for bundleIdentifier: String) -> [URL] {
+            let directory = appSupportDirectory.appendingPathComponent(bundleIdentifier, isDirectory: true)
+            return [
+                directory.appendingPathComponent("config", isDirectory: false),
+                directory.appendingPathComponent("config.ghostty", isDirectory: false)
+            ].filter { url in
+                guard let attrs = try? fileManager.attributesOfItem(atPath: url.path),
+                      let type = attrs[.type] as? FileAttributeType,
+                      type == .typeRegular,
+                      let size = attrs[.size] as? NSNumber else {
+                    return false
+                }
+                return size.intValue > 0
+            }
+        }
 
-        let hasReleaseAppSupportConfig = (releaseConfigFileSize ?? 0) > 0 || (releaseLegacyConfigFileSize ?? 0) > 0
-        return hasReleaseAppSupportConfig
+        let currentURLs = existingConfigURLs(for: currentBundleIdentifier)
+        if !currentURLs.isEmpty {
+            return currentURLs
+        }
+        if SocketControlSettings.isDebugLikeBundleIdentifier(currentBundleIdentifier) {
+            let releaseURLs = existingConfigURLs(for: releaseBundleIdentifier)
+            if !releaseURLs.isEmpty {
+                return releaseURLs
+            }
+        }
+        return []
     }
 
     static func shouldApplyDefaultBackgroundUpdate(
@@ -1282,54 +1484,30 @@ class GhosttyApp {
         return true
     }
 
-    private func loadReleaseAppSupportGhosttyConfigIfNeeded(_ config: ghostty_config_t) {
+    private func loadCmuxAppSupportGhosttyConfigIfNeeded(_ config: ghostty_config_t) {
         #if os(macOS)
         let fm = FileManager.default
         guard let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
         guard let currentBundleIdentifier = Bundle.main.bundleIdentifier,
               !currentBundleIdentifier.isEmpty else { return }
-
-        let currentAppSupportDir = appSupport.appendingPathComponent(currentBundleIdentifier, isDirectory: true)
-        let releaseAppSupportDir = appSupport.appendingPathComponent(Self.releaseBundleIdentifier, isDirectory: true)
-        let currentConfig = currentAppSupportDir.appendingPathComponent("config.ghostty", isDirectory: false)
-        let currentLegacyConfig = currentAppSupportDir.appendingPathComponent("config", isDirectory: false)
-        let releaseConfig = releaseAppSupportDir.appendingPathComponent("config.ghostty", isDirectory: false)
-        let releaseLegacyConfig = releaseAppSupportDir.appendingPathComponent("config", isDirectory: false)
-
-        func fileSize(_ url: URL) -> Int? {
-            guard let attrs = try? fm.attributesOfItem(atPath: url.path),
-                  let size = attrs[.size] as? NSNumber else { return nil }
-            return size.intValue
-        }
-
-        let releaseConfigSize = fileSize(releaseConfig)
-        let releaseLegacyConfigSize = fileSize(releaseLegacyConfig)
-
-        guard Self.shouldLoadReleaseAppSupportGhosttyConfig(
+        let urls = Self.cmuxAppSupportConfigURLs(
             currentBundleIdentifier: currentBundleIdentifier,
-            currentConfigFileSize: fileSize(currentConfig),
-            currentLegacyConfigFileSize: fileSize(currentLegacyConfig),
-            releaseConfigFileSize: releaseConfigSize,
-            releaseLegacyConfigFileSize: releaseLegacyConfigSize
-        ) else { return }
-
-        if let releaseLegacyConfigSize, releaseLegacyConfigSize > 0 {
-            releaseLegacyConfig.path.withCString { path in
-                ghostty_config_load_file(config, path)
-            }
-        }
-
-        if let releaseConfigSize, releaseConfigSize > 0 {
-            releaseConfig.path.withCString { path in
-                ghostty_config_load_file(config, path)
-            }
-        }
-
-        #if DEBUG
-        Self.initLog(
-            "loaded release app support ghostty config fallback from: \(releaseAppSupportDir.path)"
+            appSupportDirectory: appSupport,
+            fileManager: fm
         )
-        #endif
+        guard !urls.isEmpty else { return }
+
+        for url in urls {
+            url.path.withCString { path in
+                ghostty_config_load_file(config, path)
+            }
+        }
+
+#if DEBUG
+        dlog(
+            "loaded cmux app support ghostty config from: \(urls.map(\.path).joined(separator: ", "))"
+        )
+#endif
         #endif
     }
 
@@ -1745,7 +1923,15 @@ class GhosttyApp {
                           let tabId = tabManager.selectedTabId else {
                         return false
                     }
-                    let tabTitle = tabManager.titleForTab(tabId) ?? "Terminal"
+                    // Suppress OSC notifications for workspaces with active Claude hook sessions.
+                    // The hook system manages notifications with proper lifecycle tracking;
+                    // raw OSC notifications would duplicate or outlive the structured hooks.
+                    let owningManager = AppDelegate.shared?.tabManagerFor(tabId: tabId) ?? tabManager
+                    if let workspace = owningManager.tabs.first(where: { $0.id == tabId }),
+                       workspace.agentPIDs["claude_code"] != nil {
+                        return true
+                    }
+                    let tabTitle = owningManager.titleForTab(tabId) ?? "Terminal"
                     let command = actionTitle.isEmpty ? tabTitle : actionTitle
                     let body = actionBody
                     let surfaceId = tabManager.focusedSurfaceId(for: tabId)
@@ -2017,7 +2203,13 @@ class GhosttyApp {
             let actionBody = action.action.desktop_notification.body
                 .flatMap { String(cString: $0) } ?? ""
             performOnMain {
-                let tabTitle = AppDelegate.shared?.tabManager?.titleForTab(tabId) ?? "Terminal"
+                // Suppress OSC notifications for workspaces with active Claude hook sessions.
+                let owningManager = AppDelegate.shared?.tabManagerFor(tabId: tabId) ?? AppDelegate.shared?.tabManager
+                if let workspace = owningManager?.tabs.first(where: { $0.id == tabId }),
+                   workspace.agentPIDs["claude_code"] != nil {
+                    return
+                }
+                let tabTitle = owningManager?.titleForTab(tabId) ?? "Terminal"
                 let command = actionTitle.isEmpty ? tabTitle : actionTitle
                 let body = actionBody
                 TerminalNotificationStore.shared.addNotification(
@@ -2333,7 +2525,8 @@ final class TerminalSurface: Identifiable, ObservableObject {
     private let surfaceContext: ghostty_surface_context_e
     private let configTemplate: ghostty_surface_config_s?
     private let workingDirectory: String?
-    private let additionalEnvironment: [String: String]
+    var requestedWorkingDirectory: String? { workingDirectory }
+    private var additionalEnvironment: [String: String]
     let hostedView: GhosttySurfaceScrollView
     private let surfaceView: GhosttyNSView
     private var lastPixelWidth: UInt32 = 0
@@ -2345,6 +2538,9 @@ final class TerminalSurface: Identifiable, ObservableObject {
     private let maxPendingTextBytes = 1_048_576
     private var backgroundSurfaceStartQueued = false
     private var surfaceCallbackContext: Unmanaged<GhosttySurfaceCallbackContext>?
+#if DEBUG
+    private var needsConfirmCloseOverrideForTesting: Bool?
+#endif
     private enum PortalLifecycleState: String {
         case live
         case closing
@@ -2848,11 +3044,33 @@ final class TerminalSurface: Identifiable, ObservableObject {
                 }
 
                 env["ZDOTDIR"] = integrationDir
+            } else if shellName == "bash" {
+                if GhosttyApp.shared.shellIntegrationMode() != "none" {
+                    env["CMUX_LOAD_GHOSTTY_BASH_INTEGRATION"] = "1"
+                }
+                // macOS ships /bin/bash 3.2, where Ghostty's automatic bash
+                // integration is unsupported and HOME-based wrapper startup is
+                // not reliable. Bootstrap cmux bash integration on the first
+                // interactive prompt instead.
+                env["PROMPT_COMMAND"] = """
+                unset PROMPT_COMMAND; \
+                if [[ "${CMUX_LOAD_GHOSTTY_BASH_INTEGRATION:-0}" == "1" && -n "${GHOSTTY_RESOURCES_DIR:-}" ]]; then \
+                _cmux_ghostty_bash="$GHOSTTY_RESOURCES_DIR/shell-integration/bash/ghostty.bash"; \
+                [[ -r "$_cmux_ghostty_bash" ]] && source "$_cmux_ghostty_bash"; \
+                fi; \
+                if [[ "${CMUX_SHELL_INTEGRATION:-1}" != "0" && -n "${CMUX_SHELL_INTEGRATION_DIR:-}" ]]; then \
+                _cmux_bash_integration="$CMUX_SHELL_INTEGRATION_DIR/cmux-bash-integration.bash"; \
+                [[ -r "$_cmux_bash_integration" ]] && source "$_cmux_bash_integration"; \
+                fi; \
+                unset _cmux_ghostty_bash _cmux_bash_integration; \
+                if declare -F _cmux_prompt_command >/dev/null 2>&1; then _cmux_prompt_command; fi
+                """
             }
         }
 
-        if !additionalEnvironment.isEmpty {
-            for (key, value) in additionalEnvironment where !key.isEmpty && !value.isEmpty {
+        let startupEnvironment = additionalEnvironment
+        if !startupEnvironment.isEmpty {
+            for (key, value) in startupEnvironment where !key.isEmpty && !value.isEmpty {
                 env[key] = value
             }
         }
@@ -2910,6 +3128,10 @@ final class TerminalSurface: Identifiable, ObservableObject {
             return
         }
         guard let createdSurface = surface else { return }
+
+        // Session scrollback replay must be one-shot. Reusing it on a later runtime
+        // surface recreation would inject stale restored output into a live shell.
+        additionalEnvironment.removeValue(forKey: SessionScrollbackReplayStore.environmentKey)
 
         // For vsync-driven rendering, Ghostty needs to know which display we're on so it can
         // start a CVDisplayLink with the right refresh rate. If we don't set this early, the
@@ -3090,6 +3312,11 @@ final class TerminalSurface: Identifiable, ObservableObject {
     }
 
     func needsConfirmClose() -> Bool {
+#if DEBUG
+        if let needsConfirmCloseOverrideForTesting {
+            return needsConfirmCloseOverrideForTesting
+        }
+#endif
         guard let surface = surface else { return false }
         return ghostty_surface_needs_confirm_quit(surface)
     }
@@ -3268,6 +3495,11 @@ final class TerminalSurface: Identifiable, ObservableObject {
     }
 
 #if DEBUG
+    @MainActor
+    func setNeedsConfirmCloseOverrideForTesting(_ value: Bool?) {
+        needsConfirmCloseOverrideForTesting = value
+    }
+
     /// Test-only helper to deterministically simulate a released runtime surface.
     @MainActor
     func releaseSurfaceForTesting() {
@@ -3646,6 +3878,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
             source: "surface.viewDidMoveToWindow"
         )
         applyWindowBackgroundIfActive()
+        invalidateTextInputCoordinates()
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -3677,11 +3910,13 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
             CATransaction.commit()
         }
         updateSurfaceSize()
+        invalidateTextInputCoordinates()
     }
 
     override func layout() {
         super.layout()
         updateSurfaceSize()
+        invalidateTextInputCoordinates()
     }
 
     override var isOpaque: Bool { false }
@@ -4230,16 +4465,45 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     }
 
     override func accessibilitySelectedText() -> String? {
-        guard let surface = surface else { return nil }
+        guard let snapshot = readSelectionSnapshot() else { return nil }
+        return snapshot.string.isEmpty ? nil : snapshot.string
+    }
+
+    private func readSelectionSnapshot() -> SelectionSnapshot? {
+        guard let surface else { return nil }
 
         var text = ghostty_text_s()
         guard ghostty_surface_read_selection(surface, &text) else { return nil }
         defer { ghostty_surface_free_text(surface, &text) }
 
-        guard let ptr = text.text, text.text_len > 0 else { return nil }
-        let selectedData = Data(bytes: ptr, count: Int(text.text_len))
-        let selected = String(decoding: selectedData, as: UTF8.self)
-        return selected.isEmpty ? nil : selected
+        let selected: String
+        if let ptr = text.text, text.text_len > 0 {
+            let selectedData = Data(bytes: ptr, count: Int(text.text_len))
+            selected = String(decoding: selectedData, as: UTF8.self)
+        } else {
+            selected = ""
+        }
+
+        return SelectionSnapshot(
+            range: NSRange(location: Int(text.offset_start), length: Int(text.offset_len)),
+            string: selected,
+            topLeft: CGPoint(x: text.tl_px_x, y: text.tl_px_y)
+        )
+    }
+
+    private func visibleDocumentRectInScreenCoordinates() -> NSRect {
+        let localRect = visibleRect
+        let windowRect = convert(localRect, to: nil)
+        guard let window else { return windowRect }
+        return window.convertToScreen(windowRect)
+    }
+
+    private func invalidateTextInputCoordinates(selectionChanged: Bool = false) {
+        guard let inputContext else { return }
+        inputContext.invalidateCharacterCoordinates()
+        if #available(macOS 15.4, *), selectionChanged {
+            inputContext.textInputClientDidUpdateSelection()
+        }
     }
 
     override var acceptsFirstResponder: Bool { true }
@@ -4334,6 +4598,11 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     private var keyTextAccumulator: [String]? = nil
     private var markedText = NSMutableAttributedString()
     private var lastPerformKeyEvent: TimeInterval?
+    private struct SelectionSnapshot {
+        let range: NSRange
+        let string: String
+        let topLeft: CGPoint
+    }
 
 #if DEBUG
     // Test-only accessors for keyTextAccumulator to verify CJK IME composition behavior.
@@ -7910,7 +8179,7 @@ extension GhosttyNSView: NSTextInputClient {
     }
 
     func selectedRange() -> NSRange {
-        return NSRange(location: NSNotFound, length: 0)
+        readSelectionSnapshot()?.range ?? NSRange(location: 0, length: 0)
     }
 
     func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
@@ -7938,6 +8207,7 @@ extension GhosttyNSView: NSTextInputClient {
         // while composing.
         if keyTextAccumulator == nil {
             syncPreedit()
+            invalidateTextInputCoordinates(selectionChanged: true)
         }
     }
 
@@ -7956,6 +8226,7 @@ extension GhosttyNSView: NSTextInputClient {
         if markedText.length > 0 {
             markedText.mutableString.setString("")
             syncPreedit()
+            invalidateTextInputCoordinates(selectionChanged: true)
         }
     }
 
@@ -7996,11 +8267,14 @@ extension GhosttyNSView: NSTextInputClient {
     }
 
     func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
-        return nil
+        guard range.length > 0,
+              let snapshot = readSelectionSnapshot() else { return nil }
+        actualRange?.pointee = snapshot.range
+        return NSAttributedString(string: snapshot.string)
     }
 
     func characterIndex(for point: NSPoint) -> Int {
-        return 0
+        return selectedRange().location
     }
 
     func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
@@ -8014,7 +8288,12 @@ extension GhosttyNSView: NSTextInputClient {
         var w: Double = cellSize.width
         var h: Double = cellSize.height
 #if DEBUG
-        if let override = imePointOverrideForTesting {
+        if range.length > 0,
+           range != selectedRange(),
+           let snapshot = readSelectionSnapshot() {
+            x = snapshot.topLeft.x - 2
+            y = snapshot.topLeft.y + 2
+        } else if let override = imePointOverrideForTesting {
             x = override.x
             y = override.y
             w = override.width
@@ -8023,10 +8302,20 @@ extension GhosttyNSView: NSTextInputClient {
             ghostty_surface_ime_point(surface, &x, &y, &w, &h)
         }
 #else
-        if let surface = surface {
+        if range.length > 0,
+           range != selectedRange(),
+           let snapshot = readSelectionSnapshot() {
+            x = snapshot.topLeft.x - 2
+            y = snapshot.topLeft.y + 2
+        } else if let surface = surface {
             ghostty_surface_ime_point(surface, &x, &y, &w, &h)
         }
 #endif
+
+        if range.length == 0, w > 0 {
+            // Dictation expects a caret rect for insertion points rather than a box.
+            w = 0
+        }
 
         // Ghostty coordinates are top-left origin; AppKit expects bottom-left.
         let viewRect = NSRect(
@@ -8037,6 +8326,30 @@ extension GhosttyNSView: NSTextInputClient {
         )
         let winRect = convert(viewRect, to: nil)
         return window.convertToScreen(winRect)
+    }
+
+    func attributedString() -> NSAttributedString {
+        if markedText.length > 0 {
+            return NSAttributedString(attributedString: markedText)
+        }
+        if let snapshot = readSelectionSnapshot(), !snapshot.string.isEmpty {
+            return NSAttributedString(string: snapshot.string)
+        }
+        return NSAttributedString(string: "")
+    }
+
+    func windowLevel() -> Int {
+        Int(window?.level.rawValue ?? NSWindow.Level.normal.rawValue)
+    }
+
+    @available(macOS 14.0, *)
+    var unionRectInVisibleSelectedRange: NSRect {
+        firstRect(forCharacterRange: selectedRange(), actualRange: nil)
+    }
+
+    @available(macOS 14.0, *)
+    var documentVisibleRect: NSRect {
+        visibleDocumentRectInScreenCoordinates()
     }
 
     func insertText(_ string: Any, replacementRange: NSRange) {
