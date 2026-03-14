@@ -3109,18 +3109,39 @@ final class TerminalSurface: Identifiable, ObservableObject {
         writeTextData(data, to: surface)
     }
 
-    /// Send a Return key press event (outside of bracket paste mode).
+    /// Send a synthetic Return key event through AppKit, simulating a physical
+    /// key press. This goes through the same NSEvent → keyDown path as a real
+    /// keystroke, ensuring compatibility with all terminal applications.
     func sendReturnKey() {
-        guard let surface = surface else { return }
-        "\r".withCString { ptr in
-            var keyEvent = ghostty_input_key_s()
-            keyEvent.action = GHOSTTY_ACTION_PRESS
-            keyEvent.keycode = GHOSTTY_KEY_ENTER.rawValue
-            keyEvent.mods = GHOSTTY_MODS_NONE
-            keyEvent.consumed_mods = GHOSTTY_MODS_NONE
-            keyEvent.text = ptr
-            keyEvent.composing = false
-            _ = ghostty_surface_key(surface, keyEvent)
+        guard let view = attachedView, let window = view.window else { return }
+        let flags: NSEvent.ModifierFlags = []
+        if let keyDown = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: flags,
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
+            isARepeat: false,
+            keyCode: 36 // Return key
+        ) {
+            view.keyDown(with: keyDown)
+        }
+        if let keyUp = NSEvent.keyEvent(
+            with: .keyUp,
+            location: .zero,
+            modifierFlags: flags,
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
+            isARepeat: false,
+            keyCode: 36
+        ) {
+            view.keyUp(with: keyUp)
         }
     }
 

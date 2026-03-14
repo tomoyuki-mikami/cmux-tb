@@ -45,14 +45,18 @@ final class TerminalPanel: Panel, ObservableObject {
     }
 
     /// Send text through TextBox: writes to PTY and records in command history.
-    /// Focus stays in the TextBox after sending.
+    /// Delays the Return key slightly to ensure the bracket paste has been
+    /// fully processed by the receiving application before submission.
     func sendTextFromTextBox(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .newlines)
         if !trimmed.isEmpty {
             commandHistory.add(trimmed)
             surface.sendText(trimmed)
         }
-        surface.sendReturnKey()
+        // Delay to let bracket paste be fully processed before sending Enter
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.surface.sendReturnKey()
+        }
     }
 
     /// Bump this token to force SwiftUI to call `updateNSView` on `GhosttyTerminalView`,
