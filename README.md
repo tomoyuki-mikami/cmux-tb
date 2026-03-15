@@ -7,6 +7,8 @@
   </a>
 </p>
 
+<p align="center">Version 0.62.2-tb3 (Updated 2026/3/16)</p>
+
 <br>
 
 <p align="center">

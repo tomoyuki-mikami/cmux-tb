@@ -54,6 +54,19 @@ jobs:
             -clonedSourcePackagesDirPath .spm-cache \
             CODE_SIGNING_ALLOWED=NO build
 
+      # [TextBox] Verify Sparkle public key is baked into the built app
+      - name: Verify Sparkle keys in Info.plist
+        run: |
+          APP_PLIST="build/Build/Products/Release/cmux-tb.app/Contents/Info.plist"
+          PLIST_KEY=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$APP_PLIST" 2>/dev/null || echo "")
+          PLIST_FEED=$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP_PLIST" 2>/dev/null || echo "")
+          echo "SUPublicEDKey: $PLIST_KEY"
+          echo "SUFeedURL: $PLIST_FEED"
+          if [ -z "$PLIST_KEY" ]; then
+            echo "ERROR: SUPublicEDKey missing from Info.plist" >&2
+            exit 1
+          fi
+
       - name: Import signing cert
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
@@ -140,11 +153,20 @@ jobs:
           xcrun stapler staple "$DMG_RELEASE"
           xcrun stapler validate "$DMG_RELEASE"
 
-      - name: Upload release asset
+      # [TextBox] Generate Sparkle appcast.xml for auto-update
+      - name: Generate appcast.xml
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          ./scripts/sparkle_generate_appcast.sh cmux-tb-macos.dmg "$TAG" appcast.xml
+
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: cmux-tb-macos.dmg
-          generate_release_notes: true
+          files: |
+            cmux-tb-macos.dmg
+            appcast.xml
 
       - name: Cleanup keychain
         if: always()
