@@ -84,9 +84,26 @@ gh run list --repo alumican/cmux-tb --limit 3
 gh run view <run-id> --repo alumican/cmux-tb
 ```
 
-### 7. Publish the release
+### 7. Clean up duplicate releases
 
-Once the CI workflow completes and the DMG is attached to the draft release:
+CI (`softprops/action-gh-release`) may create a **separate** published release alongside your draft. Check for duplicates:
+
+```bash
+gh release list --repo alumican/cmux-tb --limit 5
+```
+
+If a duplicate draft remains, delete it:
+
+```bash
+# Find the draft release ID
+gh api repos/alumican/cmux-tb/releases --jq '.[] | select(.draft==true and .tag_name=="v0.62.2-tb2") | .id'
+# Delete it
+gh api -X DELETE repos/alumican/cmux-tb/releases/<id>
+```
+
+### 8. Publish the release
+
+Once the CI workflow completes, the DMG is attached, and duplicates are cleaned up:
 
 ```bash
 gh release edit v0.62.2-tb2 --repo alumican/cmux-tb --draft=false
