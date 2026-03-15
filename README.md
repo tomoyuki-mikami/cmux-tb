@@ -1,5 +1,5 @@
 <h1 align="center">cmux + TextBox</h1>
-<p align="center">A fork of <a href="https://github.com/manaflow-ai/cmux">cmux</a> with a built-in TextBox input mode</p>
+<p align="center">A TextBox input mode for the terminal app <a href="https://github.com/manaflow-ai/cmux">cmux</a></p>
 
 <p align="center">
   <a href="https://github.com/alumican/cmux-tb/releases/latest/download/cmux-tb-macos.dmg">
@@ -20,77 +20,75 @@
   <img src="./docs/assets/textbox-top-image.png" alt="cmux + TextBox" />
 </p>
 
-## Why TextBox?
+## 🤔 Why TextBox?
 
-If you're not used to terminals, typing in one can sometimes feel awkward. Line breaks, selection, cut & paste — things you do without thinking — just don't work the way you expect.
+If you're not used to terminals, typing in one can sometimes feel awkward. Line breaks, selection, cut & paste — things you do without thinking — just don't work the way you expect. With this TextBox-enabled terminal, just type what you want. The standard terminal input is still there too, of course.
 
-With this TextBox-enabled terminal, just type what you want. The standard terminal input is still there too, of course.
-
-Two input modes sounds complicated? Don't worry — careful interaction design blends the boundary between them, so it all feels natural.
+Two input modes sounds complicated? Don't worry — careful interaction design blends the boundary between them, so it all feels natural.💪
 
 <p align="center">
   <img src="./docs/assets/textbox-top.gif" alt="cmux + TextBox demo" />
 </p>
 
-## Features
+## 🚀 Features
 
 <table>
 <tr>
-<td width="40%" valign="middle">
+<td width="50%" valign="middle">
 <h3>Seamless and modeless</h3>
-When the TextBox is empty, arrow keys, Tab, and Backspace pass through to the terminal.
+<strong>When the TextBox is empty</strong>, arrow keys, Tab, and Backspace pass through to the terminal.
 <br/>
 <br/>
-Ctrl+key combinations (Ctrl+C, Ctrl+D, Ctrl+Z, etc.) and Escape are always forwarded regardless of content.
+Ctrl+key combinations (Ctrl+C, Ctrl+D, Ctrl+Z, etc.) and Escape are <strong>always forwarded regardless of content</strong>.
 </td>
-<td width="60%">
+<td width="50%">
 <img src="./docs/assets/textbox-seamless.gif" alt="Seamless and modeless" width="100%" />
 </td>
 </tr>
 <tr>
-<td width="40%" valign="middle">
+<td width="50%" valign="middle">
 <h3>Ready when you need it</h3>
 Toggle the TextBox with a shortcut — focus moves smoothly between the input bar and terminal, so you can start typing right away.
 </td>
-<td width="60%">
+<td width="50%">
 <img src="./docs/assets/textbox-toggle.gif" alt="TextBox toggle" width="100%" />
 </td>
 </tr>
 <tr>
-<td width="40%" valign="middle">
+<td width="50%" valign="middle">
 <h3>Familiar editing</h3>
 The TextBox uses your OS-native text input. Arrow keys, selection, copy & paste — the same operations you're used to, just working.
 </td>
-<td width="60%">
+<td width="50%">
 <img src="./docs/assets/textbox-edit.gif" alt="Familiar editing" width="100%" />
 </td>
 </tr>
 <tr>
-<td width="40%" valign="middle">
+<td width="50%" valign="middle">
 <h3>Great with Claude Code</h3>
 Launch an agent, edit prompts, reply to questions, interrupt a task — all without leaving the TextBox. Works with other terminal agents too, of course.
 </td>
-<td width="60%">
+<td width="50%">
 <img src="./docs/assets/textbox-agent.gif" alt="Great with Claude Code" width="100%" />
 </td>
 </tr>
 <tr>
-<td width="40%" valign="middle">
+<td width="50%" valign="middle">
 <h3>Settings</h3>
 Send on Return or Shift+Return? What should ESC do? Customize it to fit your workflow.
 </td>
-<td width="60%">
+<td width="50%">
 <img src="./docs/assets/textbox-settings.gif" alt="TextBox settings" width="100%" />
 </td>
 </tr>
 </table>
 
-### Not yet supported
+### 🚧 Not yet supported
 
 - **Drag & drop paths** — Drop files or folders into the TextBox to insert their path (planned)
 - **Tab completion in TextBox** — For now, tab completion requires using the terminal input directly
 
-## Install
+## 💻 Install
 
 ### DMG (recommended)
 
@@ -109,7 +107,7 @@ cd cmux
 ./scripts/reload.sh --tag textbox
 ```
 
-## Keyboard Shortcuts
+## ⌨ Keyboard Shortcuts
 
 ### TextBox
 
@@ -131,6 +129,6 @@ All standard cmux shortcuts continue to work. See the [cmux README](https://gith
 | Escape Key | Send ESC Key | Action when pressing ESC (Focus Terminal / Send ESC Key) |
 | Show/Hide TextBox Input | ⌘⌥T | Keyboard shortcut to toggle TextBox |
 
-## License
+## 📄 License
 
 Same as cmux — [AGPL-3.0-or-later](LICENSE).
