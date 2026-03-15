@@ -163,10 +163,12 @@ enum TextBoxInputSettings {
     static let enabledKey = "textBoxEnabled"
     static let enterToSendKey = "textBoxEnterToSend"
     static let escapeBehaviorKey = "textBoxEscapeBehavior"
+    static let positionKey = "textBoxPosition"
 
     static let defaultEnabled = true
     static let defaultEnterToSend = true
     static let defaultEscapeBehavior = TextBoxEscapeBehavior.sendEscape
+    static let defaultPosition = TextBoxPosition.bottom
 
     /// Opacity applied to settings rows when TextBox is disabled.
     static let disabledSettingsOpacity: Double = 0.5
@@ -176,6 +178,7 @@ enum TextBoxInputSettings {
         UserDefaults.standard.removeObject(forKey: enabledKey)
         UserDefaults.standard.removeObject(forKey: enterToSendKey)
         UserDefaults.standard.removeObject(forKey: escapeBehaviorKey)
+        UserDefaults.standard.removeObject(forKey: positionKey)
     }
 
     private static func bool(forKey key: String, default defaultValue: Bool) -> Bool {
@@ -198,6 +201,33 @@ enum TextBoxInputSettings {
             return defaultEscapeBehavior
         }
         return value
+    }
+
+    static func position() -> TextBoxPosition {
+        guard let raw = UserDefaults.standard.string(forKey: positionKey),
+              let value = TextBoxPosition(rawValue: raw) else {
+            return defaultPosition
+        }
+        return value
+    }
+}
+
+/// Where the TextBox is positioned relative to the terminal.
+enum TextBoxPosition: String, CaseIterable, Identifiable {
+    /// Below the terminal (default).
+    case bottom = "bottom"
+    /// Above the terminal.
+    case top = "top"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .bottom:
+            return String(localized: "textbox.position.bottom", defaultValue: "Bottom")
+        case .top:
+            return String(localized: "textbox.position.top", defaultValue: "Top")
+        }
     }
 }
 

@@ -55138,6 +55138,40 @@
         }
       }
     },
+    "settings.textBoxInput.position": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Position"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置"
+          }
+        }
+      }
+    },
+    "settings.textBoxInput.position.subtitle": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Place the TextBox above or below the terminal."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "テキストボックスをターミナルの上または下に配置します。"
+          }
+        }
+      }
+    },
     "settings.textBoxInput.sendOnReturn": {
       "extractionState": "extracted_with_value",
       "localizations": {
@@ -64544,6 +64578,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "ESCキーを送信"
+          }
+        }
+      }
+    },
+    "textbox.position.bottom": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Bottom"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下"
+          }
+        }
+      }
+    },
+    "textbox.position.top": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Top"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上"
           }
         }
       }

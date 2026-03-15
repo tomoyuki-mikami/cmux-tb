@@ -3124,6 +3124,7 @@ struct SettingsView: View {
     @AppStorage(TextBoxInputSettings.enabledKey) private var textBoxInputEnabled = TextBoxInputSettings.defaultEnabled
     @AppStorage(TextBoxInputSettings.enterToSendKey) private var textBoxEnterToSend = TextBoxInputSettings.defaultEnterToSend
     @AppStorage(TextBoxInputSettings.escapeBehaviorKey) private var textBoxEscapeBehavior = TextBoxInputSettings.defaultEscapeBehavior.rawValue
+    @AppStorage(TextBoxInputSettings.positionKey) private var textBoxPosition = TextBoxInputSettings.defaultPosition.rawValue
     @AppStorage("sidebarShowPorts") private var sidebarShowPorts = true
     @AppStorage("sidebarShowLog") private var sidebarShowLog = true
     @AppStorage("sidebarShowProgress") private var sidebarShowProgress = true
@@ -4094,6 +4095,20 @@ struct SettingsView: View {
                         ) {
                             ForEach(TextBoxEscapeBehavior.allCases) { behavior in
                                 Text(behavior.displayName).tag(behavior.rawValue)
+                            }
+                        }
+                        .textBoxSettingsDisabled(!textBoxInputEnabled)
+
+                        SettingsCardDivider()
+
+                        SettingsPickerRow(
+                            String(localized: "settings.textBoxInput.position", defaultValue: "Position"),
+                            subtitle: String(localized: "settings.textBoxInput.position.subtitle", defaultValue: "Place the TextBox above or below the terminal."),
+                            controlWidth: pickerColumnWidth,
+                            selection: $textBoxPosition
+                        ) {
+                            ForEach(TextBoxPosition.allCases) { position in
+                                Text(position.displayName).tag(position.rawValue)
                             }
                         }
                         .textBoxSettingsDisabled(!textBoxInputEnabled)

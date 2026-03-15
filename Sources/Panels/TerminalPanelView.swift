@@ -19,6 +19,7 @@ struct TerminalPanelView: View {
     // [TextBox]
     @AppStorage(TextBoxInputSettings.enabledKey) private var textBoxEnabled = TextBoxInputSettings.defaultEnabled
     @AppStorage(TextBoxInputSettings.enterToSendKey) private var enterToSend = TextBoxInputSettings.defaultEnterToSend
+    @AppStorage(TextBoxInputSettings.positionKey) private var textBoxPosition = TextBoxInputSettings.defaultPosition.rawValue
 
     /// Whether the TextBox is visible. Requires both the global Enabled setting
     /// AND the per-panel `isTextBoxActive` flag. When Enabled is toggled on,
@@ -40,6 +41,11 @@ struct TerminalPanelView: View {
         // Layering contract: terminal find UI is mounted in GhosttySurfaceScrollView (AppKit portal layer)
         // via `searchState`. Rendering `SurfaceSearchOverlay` in this SwiftUI container can hide it.
         VStack(spacing: 0) {
+            // [TextBox] Position: top
+            if showTextBox && textBoxPosition == TextBoxPosition.top.rawValue {
+                textBoxView(runtimeBg: runtimeBg, runtimeFg: runtimeFg, font: font)
+            }
+
             GhosttyTerminalView(
                 terminalSurface: panel.surface,
                 isActive: isFocused,
@@ -59,16 +65,9 @@ struct TerminalPanelView: View {
             .id(panel.id)
             .background(Color.clear)
 
-            // [TextBox]
-            if showTextBox {
-                TextBoxInputContainer(
-                    text: $panel.textBoxContent,
-                    enterToSend: enterToSend,
-                    surface: panel.surface,
-                    terminalBackgroundColor: runtimeBg,
-                    terminalForegroundColor: runtimeFg,
-                    terminalFont: font
-                )
+            // [TextBox] Position: bottom (default)
+            if showTextBox && textBoxPosition != TextBoxPosition.top.rawValue {
+                textBoxView(runtimeBg: runtimeBg, runtimeFg: runtimeFg, font: font)
             }
         }
         // [TextBox]
@@ -78,6 +77,20 @@ struct TerminalPanelView: View {
                 panel.isTextBoxActive = true
             }
         }
+    }
+
+    // MARK: - Private Helpers
+
+    @ViewBuilder
+    private func textBoxView(runtimeBg: NSColor, runtimeFg: NSColor, font: NSFont) -> some View {
+        TextBoxInputContainer(
+            text: $panel.textBoxContent,
+            enterToSend: enterToSend,
+            surface: panel.surface,
+            terminalBackgroundColor: runtimeBg,
+            terminalForegroundColor: runtimeFg,
+            terminalFont: font
+        )
     }
 }
 
