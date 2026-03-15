@@ -8134,6 +8134,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let hasEventWindowContext = shortcutEventHasAddressableWindow(event)
         let didSynchronizeShortcutContext = synchronizeShortcutRoutingContext(event: event)
         if hasEventWindowContext && !didSynchronizeShortcutContext {
+            // Context sync failed — the event's window is addressable but couldn't be
+            // resolved to a MainWindowContext. For pane focus / split zoom shortcuts,
+            // try to resolve the correct tabManager from NSApp.keyWindow (the window
+            // that actually has keyboard focus), but only when that window matches
+            // the event window to avoid cross-window misrouting.
+            if let keyWindow = NSApp.keyWindow,
+               let keyWindowContext = contextForMainTerminalWindow(keyWindow) {
+
+                if let eventWindow = event.window {
+                    guard eventWindow === keyWindow else {
+                        return false
+                    }
+                } else if event.windowNumber > 0 && event.windowNumber != keyWindow.windowNumber {
+                    return false
+                }
+
+                let keyTabManager = keyWindowContext.tabManager
+                if matchDirectionalShortcut(
+                    event: event,
+                    shortcut: KeyboardShortcutSettings.shortcut(for: .focusLeft),
+                    arrowGlyph: "←",
+                    arrowKeyCode: 123
+                ) || (ghosttyGotoSplitLeftShortcut.map { matchDirectionalShortcut(event: event, shortcut: $0, arrowGlyph: "←", arrowKeyCode: 123) } ?? false) {
+                    keyTabManager.movePaneFocus(direction: .left)
+#if DEBUG
+                    recordGotoSplitMoveIfNeeded(direction: .left)
+#endif
+                    return true
+                }
+                if matchDirectionalShortcut(
+                    event: event,
+                    shortcut: KeyboardShortcutSettings.shortcut(for: .focusRight),
+                    arrowGlyph: "→",
+                    arrowKeyCode: 124
+                ) || (ghosttyGotoSplitRightShortcut.map { matchDirectionalShortcut(event: event, shortcut: $0, arrowGlyph: "→", arrowKeyCode: 124) } ?? false) {
+                    keyTabManager.movePaneFocus(direction: .right)
+#if DEBUG
+                    recordGotoSplitMoveIfNeeded(direction: .right)
+#endif
+                    return true
+                }
+                if matchDirectionalShortcut(
+                    event: event,
+                    shortcut: KeyboardShortcutSettings.shortcut(for: .focusUp),
+                    arrowGlyph: "↑",
+                    arrowKeyCode: 126
+                ) || (ghosttyGotoSplitUpShortcut.map { matchDirectionalShortcut(event: event, shortcut: $0, arrowGlyph: "↑", arrowKeyCode: 126) } ?? false) {
+                    keyTabManager.movePaneFocus(direction: .up)
+#if DEBUG
+                    recordGotoSplitMoveIfNeeded(direction: .up)
+#endif
+                    return true
+                }
+                if matchDirectionalShortcut(
+                    event: event,
+                    shortcut: KeyboardShortcutSettings.shortcut(for: .focusDown),
+                    arrowGlyph: "↓",
+                    arrowKeyCode: 125
+                ) || (ghosttyGotoSplitDownShortcut.map { matchDirectionalShortcut(event: event, shortcut: $0, arrowGlyph: "↓", arrowKeyCode: 125) } ?? false) {
+                    keyTabManager.movePaneFocus(direction: .down)
+#if DEBUG
+                    recordGotoSplitMoveIfNeeded(direction: .down)
+#endif
+                    return true
+                }
+                if matchShortcut(event: event, shortcut: KeyboardShortcutSettings.shortcut(for: .toggleSplitZoom)) {
+                    _ = keyTabManager.toggleFocusedSplitZoom()
+#if DEBUG
+                    recordGotoSplitZoomIfNeeded()
+#endif
+                    return true
+                }
+            }
 #if DEBUG
             dlog("handleCustomShortcut: unresolved event window context; bypassing app shortcut handling")
 #endif
@@ -8436,7 +8509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
 
-        // Pane focus navigation (defaults to Cmd+Option+Arrow, but can be customized to letter/number keys).
+        // Pane focus navigation (after context sync so tabManager targets the correct window)
         if matchDirectionalShortcut(
             event: event,
             shortcut: KeyboardShortcutSettings.shortcut(for: .focusLeft),
