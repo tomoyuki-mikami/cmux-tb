@@ -453,7 +453,10 @@ struct TextBoxInputView: NSViewRepresentable {
         guard let scrollView = container.subviews.first as? NSScrollView,
               let textView = scrollView.documentView as? InputTextView else { return }
         context.coordinator.parent = self
-        if textView.string != text {
+        // Skip text sync during IME composition: textView.string includes marked
+        // (uncommitted) text while the binding only has committed text. Overwriting
+        // here would disrupt the active input method session.
+        if !textView.hasMarkedText(), textView.string != text {
             textView.string = text
             context.coordinator.recalcHeight(textView)
         }
