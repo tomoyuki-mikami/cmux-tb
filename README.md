@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="./docs/assets/textbox-top.gif" alt="cmux + TextBox" />
+  <img src="./docs/assets/textbox-top-image.png" alt="cmux + TextBox" />
 </p>
 
 ## Why TextBox?
@@ -22,6 +22,10 @@ If you're not used to terminals, typing in one can sometimes feel awkward. Line 
 With this TextBox-enabled terminal, just type what you want. The standard terminal input is still there too, of course.
 
 Two input modes sounds complicated? Don't worry — careful interaction design blends the boundary between them, so it all feels natural.
+
+<p align="center">
+  <img src="./docs/assets/textbox-top.gif" alt="cmux + TextBox demo" />
+</p>
 
 ## Features
 

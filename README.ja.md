@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="./docs/assets/textbox-top.gif" alt="cmux + TextBox" />
+  <img src="./docs/assets/textbox-top-image.png" alt="cmux + TextBox" />
 </p>
 
 ## なぜテキストボックス？
@@ -22,6 +22,10 @@
 このテキストボックス付きのターミナルは、書きたいことをそのまま書けばOKです。もちろん、ターミナルの入力インターフェースもそのまま使えます。
 
 ややこしそう？大丈夫。2つ入力モードの境界を自然に溶け合わせる工夫が散りばめられているので、違和感なく使えます。
+
+<p align="center">
+  <img src="./docs/assets/textbox-top.gif" alt="cmux + TextBox デモ" />
+</p>
 
 ## 機能
 
