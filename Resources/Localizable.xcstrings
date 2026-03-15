@@ -549,7 +549,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ドキュメント"
+            "value": "Docs (cmux)"
           }
         },
         "ko": {
@@ -662,7 +662,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub"
+            "value": "GitHub (fork)"
           }
         },
         "ko": {

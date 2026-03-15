@@ -2136,12 +2136,14 @@ private struct AboutPanelView: View {
 
                 HStack(spacing: 8) {
                     if let url = docsURL {
-                        Button(String(localized: "about.docs", defaultValue: "Docs")) {
+                        // [TextBox]
+                        Button(String(localized: "about.docs", defaultValue: "Docs (cmux)")) {
                             openURL(url)
                         }
                     }
                     if let url = githubURL {
-                        Button(String(localized: "about.github", defaultValue: "GitHub")) {
+                        // [TextBox]
+                        Button(String(localized: "about.github", defaultValue: "GitHub (fork)")) {
                             openURL(url)
                         }
                     }
